@@ -35,7 +35,7 @@ class AngleAxisModel(nn.Module):
     
         
 def train_angle_axis_model(mesh, gt_image, R_init, T_init, silhouette_renderer, phong_renderer, object_name, n_epochs=500, device="cuda:0"):
-    filename_output = f"./results/{object_name}.gif"
+    filename_output = f"./results/{object_name}_axis_angle.gif"
     writer = imageio.get_writer(filename_output, mode='I', duration=0.5)
 
     # Initialize a model using the renderer, mesh and reference image
