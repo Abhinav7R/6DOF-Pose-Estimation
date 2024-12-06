@@ -8,7 +8,7 @@ from skimage import img_as_ubyte
 
 from pytorch3d.transforms import matrix_to_axis_angle, axis_angle_to_matrix
 
-class AngleAxisModel(nn.Module):
+class Rotation_Translation(nn.Module):
     def __init__(self, mesh, renderer, gt_image, R_init, T_init, device):
         super().__init__()
         self.mesh = mesh
@@ -18,13 +18,15 @@ class AngleAxisModel(nn.Module):
         gt_image = torch.from_numpy((gt_image != 0).astype(np.float32)).to(self.device)
         self.register_buffer('gt_image', gt_image)
 
-        axis_angle = matrix_to_axis_angle(R_init)
-        self.AA = nn.Parameter(axis_angle)
+        # axis_angle = matrix_to_axis_angle(R_init)
+        # self.AA = nn.Parameter(axis_angle)
+        self.R = nn.Parameter(R_init)
         self.T = nn.Parameter(T_init)
 
     def forward(self):
-        AA = self.AA
-        R = axis_angle_to_matrix(AA)
+        # AA = self.AA
+        # R = axis_angle_to_matrix(AA)
+        R = self.R
         T = self.T
 
         image = self.renderer(meshes_world=self.mesh.clone(), R=R, T=T)
@@ -34,12 +36,12 @@ class AngleAxisModel(nn.Module):
         return loss, image
     
         
-def train_angle_axis_model(mesh, gt_image, R_init, T_init, silhouette_renderer, phong_renderer, object_name, n_epochs=500, device="cuda:0"):
+def train_rotation_matrix_model(mesh, gt_image, R_init, T_init, silhouette_renderer, phong_renderer, object_name, n_epochs=500, device="cuda:0"):
     filename_output = f"./results/{object_name}.gif"
     writer = imageio.get_writer(filename_output, mode='I', duration=0.5)
 
     # Initialize a model using the renderer, mesh and reference image
-    model = AngleAxisModel(mesh, silhouette_renderer, gt_image, R_init, T_init, device)
+    model = Rotation_Translation(mesh, silhouette_renderer, gt_image, R_init, T_init, device)
 
     # Create an optimizer. Here we are using Adam and we pass in the parameters of the model
     optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
@@ -74,17 +76,22 @@ def train_angle_axis_model(mesh, gt_image, R_init, T_init, silhouette_renderer, 
         tqdm.tqdm.write(f'iteration: {i}, loss: {loss}')
 
         losses.append(loss.item())
+
+        R = model.R
+        AA = matrix_to_axis_angle(R)
+        learnables = np.array([AA.detach().cpu().numpy(), model.T.detach().cpu().numpy()])
+
         parameter_updates.append({
             'iteration': i,
-            'learnables': np.array([p.data.cpu().numpy() for p in model.parameters()]),
-            # 'AA':  model.AA.clone().detach().cpu(),
+            # 'learnables': np.array([p.data.cpu().numpy() for p in model.parameters()]),
+            'learnables': learnables,
+            # 'R':  model.R.clone().detach().cpu(),
             # 'T': model.T.clone().detach().cpu(),
             'loss': loss.item()
         })
 
         if loss < min_loss:
-            AA = model.AA
-            R_min = axis_angle_to_matrix(AA)
+            R_min = model.R
             T_min = model.T
             min_loss = loss
 
@@ -95,18 +102,23 @@ def train_angle_axis_model(mesh, gt_image, R_init, T_init, silhouette_renderer, 
         if residue < 100:
             residue = 0.001 * residue
             # add perturbation to R and T
-            AA = model.AA
+            R = model.R
             T = model.T
+
+            AA = matrix_to_axis_angle(R)
             perturbation = torch.randn_like(AA) * residue
             AA = AA + perturbation
+            R = axis_angle_to_matrix(AA)
+
             dT = torch.randn_like(T) * residue
             T = T + dT
-            model.AA.data = AA
+            model.R.data = R
             model.T.data = T
 
         if i % 10 == 0:
-            AA = model.AA
-            R = axis_angle_to_matrix(AA)
+            # AA = model.AA
+            # R = axis_angle_to_matrix(AA)
+            R = model.R
             T = model.T
 
             image = phong_renderer(meshes_world=model.mesh.clone(), R=R, T=T)
