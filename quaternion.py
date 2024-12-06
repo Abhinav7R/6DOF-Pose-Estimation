@@ -22,10 +22,16 @@ class QuaternionModel(nn.Module):
         quaternion = matrix_to_quaternion(R_init)
         self.quat = nn.Parameter(quaternion)
         self.T = nn.Parameter(T_init)
+    
+    @staticmethod
+    def normalize_quaternion(q):
+        """Normalize quaternion ensuring numerical stability"""
+        norm = torch.sqrt(torch.sum(q * q) + 1e-8)
+        return q / norm
 
     def forward(self):
         # Normalize quaternion to ensure valid rotation
-        quat_normalized = F.normalize(self.quat, p=2, dim=0)
+        quat_normalized = self.normalize_quaternion(self.quat)
         R = quaternion_to_matrix(quat_normalized)
         T = self.T
 
@@ -74,14 +80,16 @@ def train_quaternion_model(mesh, gt_image, R_init, T_init, silhouette_renderer, 
         
         # Normalize quaternion after optimization step
         with torch.no_grad():
-            model.quat.data = F.normalize(model.quat.data, p=2, dim=0)
+            model.quat.data = model.normalize_quaternion(model.quat.data)
         
         tqdm.tqdm.write(f'iteration: {i}, loss: {loss}')
 
         losses.append(loss.item())
         parameter_updates.append({
             'iteration': i,
-            'learnables': np.array([p.data.cpu().numpy() for p in model.parameters()]),
+            # 'learnables': np.array([p.data.cpu().numpy() for p in model.parameters()]),
+            'quat': model.quat.clone().detach().cpu(),
+            'T': model.T.clone().detach().cpu(),
             'loss': loss.item()
         })
 
@@ -100,20 +108,20 @@ def train_quaternion_model(mesh, gt_image, R_init, T_init, silhouette_renderer, 
             quat = model.quat
             T = model.T
             perturbation = torch.randn_like(quat) * residue
-            quat = F.normalize(quat + perturbation, p=2, dim=0)
+            quat = model.normalize_quaternion(quat + perturbation)
             dT = torch.randn_like(T) * residue
             T = T + dT
             model.quat.data = quat
             model.T.data = T
 
         if i % 10 == 0:
-            quat = F.normalize(model.quat, p=2, dim=0)
+            quat = model.normalize_quaternion(model.quat)
             R = quaternion_to_matrix(quat)
             T = model.T
 
             image = phong_renderer(meshes_world=model.mesh.clone(), R=R, T=T)
             image = image[0, ..., :3].detach().squeeze().cpu().numpy()
-
+            
             gt_image = model.gt_image.cpu().numpy().squeeze()
             gt_image_normalized = (gt_image - np.min(gt_image)) / (np.max(gt_image) - np.min(gt_image))
             gt_image_colored = np.stack([gt_image_normalized] * 3, axis=-1)
