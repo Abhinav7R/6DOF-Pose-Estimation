@@ -123,8 +123,21 @@ def train_rotation_matrix_model(mesh, gt_image, R_init, T_init, silhouette_rende
 
             image = phong_renderer(meshes_world=model.mesh.clone(), R=R, T=T)
             image = image[0, ..., :3].detach().squeeze().cpu().numpy()
-            image = img_as_ubyte(image)
-            writer.append_data(image)
+
+            gt_image = model.gt_image.cpu().numpy().squeeze()
+            gt_image_normalized = (gt_image - np.min(gt_image)) / (np.max(gt_image) - np.min(gt_image))
+            gt_image_colored = np.stack([gt_image_normalized] * 3, axis=-1)
+
+            # Blend the images
+            alpha = 0.2  # Transparency for ground truth
+            blended_image = (1 - alpha) * image + alpha * gt_image_colored
+
+            # Convert to uint8 for GIF
+            blended_image_ubyte = img_as_ubyte(blended_image)
+            writer.append_data(blended_image_ubyte)
+
+            # image = img_as_ubyte(image)
+            # writer.append_data(image)
             
             plt.figure()
             plt.imshow(image[..., :3], cmap='viridis')
