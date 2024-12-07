@@ -2,7 +2,7 @@
 Mobile Robotics Course Project
 
 6DoF pose estimation of a 3D object using a single RGB image.
-This is done using differentiable rendering method. The 3D object is rendered using pytorch3d and the rendered image is compared with the input image to get the loss. The loss is minimized using gradient descent to get the 6DoF pose of the object.
+This is done using differentiable rendering method. The 3D object is rendered using pytorch3d and the rendered image is compared with the input image to get the loss. The loss is minimized using backpropagation to get the optimal pose of the object.
 
 1. Installations can be done using installation.ipynb file. It will install pytorch3d which is required to render the 3D models.
 
