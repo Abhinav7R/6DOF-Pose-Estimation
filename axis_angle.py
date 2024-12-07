@@ -36,7 +36,7 @@ class AngleAxisModel(nn.Module):
         
 def train_angle_axis_model(mesh, gt_image, R_init, T_init, silhouette_renderer, phong_renderer, object_name, n_epochs=500, device="cuda:0"):
     filename_output = f"./results/{object_name}_axis_angle.gif"
-    writer = imageio.get_writer(filename_output, mode='I', duration=1)
+    writer = imageio.get_writer(filename_output, mode='I', duration=2.5)
 
     # Initialize a model using the renderer, mesh and reference image
     model = AngleAxisModel(mesh, silhouette_renderer, gt_image, R_init, T_init, device)
@@ -97,14 +97,17 @@ def train_angle_axis_model(mesh, gt_image, R_init, T_init, silhouette_renderer, 
             # add perturbation to R and T
             AA = model.AA
             T = model.T
-            perturbation = torch.randn_like(AA) * residue
+            # perturbation = torch.randn_like(AA) * residue
+            perturbation = torch.randn_like(AA) * 0.005
             AA = AA + perturbation
-            dT = torch.randn_like(T) * residue
+
+            # dT = torch.randn_like(T) * residue
+            dT = torch.randn_like(T) * 0.005
             T = T + dT
             model.AA.data = AA
             model.T.data = T
 
-        if i % 10 == 0:
+        if i % 5 == 0:
             AA = model.AA
             R = axis_angle_to_matrix(AA)
             T = model.T
@@ -135,6 +138,34 @@ def train_angle_axis_model(mesh, gt_image, R_init, T_init, silhouette_renderer, 
             plt.show()
 
         prev_loss = loss
+
+    # append R_min and T_min images
+
+    image = phong_renderer(meshes_world=model.mesh.clone(), R=R_min, T=T_min)
+    image = image[0, ..., :3].detach().squeeze().cpu().numpy()
+
+    gt_image = model.gt_image.cpu().numpy().squeeze()
+    gt_image_normalized = (gt_image - np.min(gt_image)) / (np.max(gt_image) - np.min(gt_image))
+    gt_image_colored = np.stack([gt_image_normalized] * 3, axis=-1)
+
+    # Blend the images
+    alpha = 0.2  # Transparency for ground truth
+    blended_image = (1 - alpha) * image + alpha * gt_image_colored
+
+    # Convert to uint8 for GIF
+    blended_image_ubyte = img_as_ubyte(blended_image)
+    writer.append_data(blended_image_ubyte)
+
+    # image = img_as_ubyte(image)
+    # writer.append_data(image)
+
+    plt.figure()
+    plt.imshow(image[..., :3], cmap='viridis')
+    plt.imshow(model.gt_image.cpu().numpy().squeeze(), cmap='Reds', alpha=0.2)
+    plt.title("iter: %d, loss: %0.2f" % (i, loss.data))
+    plt.axis("off")
+    plt.title("Best fit")
+    plt.show()
 
     writer.close()
 

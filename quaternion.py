@@ -43,7 +43,7 @@ class QuaternionModel(nn.Module):
 
 def train_quaternion_model(mesh, gt_image, R_init, T_init, silhouette_renderer, phong_renderer, object_name, n_epochs=500, device="cuda:0"):
     filename_output = f"./results/{object_name}_quaternion.gif"
-    writer = imageio.get_writer(filename_output, mode='I', duration=1)
+    writer = imageio.get_writer(filename_output, mode='I', duration=2.5)
 
     # Initialize model
     model = QuaternionModel(mesh, silhouette_renderer, gt_image, R_init, T_init, device)
@@ -103,7 +103,7 @@ def train_quaternion_model(mesh, gt_image, R_init, T_init, silhouette_renderer, 
 
         residue = torch.abs(loss - prev_loss)
         if residue < 100:
-            residue = 0.001 * residue
+            residue = 0.0001 * residue
             # Add perturbation to quaternion and translation
             quat = model.quat
             T = model.T
@@ -114,7 +114,7 @@ def train_quaternion_model(mesh, gt_image, R_init, T_init, silhouette_renderer, 
             model.quat.data = quat
             model.T.data = T
 
-        if i % 10 == 0:
+        if i % 5 == 0:
             quat = model.normalize_quaternion(model.quat)
             R = quaternion_to_matrix(quat)
             T = model.T
@@ -145,6 +145,36 @@ def train_quaternion_model(mesh, gt_image, R_init, T_init, silhouette_renderer, 
             plt.show()
 
         prev_loss = loss
+
+    # append R_min and T_min images
+
+    # R_min = quaternion_to_matrix(Q_min)
+    # image = phong_renderer(meshes_world=model.mesh.clone(), R=R_min, T=T_min)
+    # image = image[0, ..., :3].detach().squeeze().cpu().numpy()
+
+    # gt_image = model.gt_image.cpu().numpy().squeeze()
+    # gt_image_normalized = (gt_image - np.min(gt_image)) / (np.max(gt_image) - np.min(gt_image))
+    # gt_image_colored = np.stack([gt_image_normalized] * 3, axis=-1)
+
+    # # Blend the images
+    # alpha = 0.2  # Transparency for ground truth
+    # blended_image = (1 - alpha) * image + alpha * gt_image_colored
+
+    # # Convert to uint8 for GIF
+    # blended_image_ubyte = img_as_ubyte(blended_image)
+    # writer.append_data(blended_image_ubyte)
+
+    # # image = img_as_ubyte(image)
+    # # writer.append_data(image)
+
+    # plt.figure()
+    # plt.imshow(image[..., :3], cmap='viridis')
+    # plt.imshow(model.gt_image.cpu().numpy().squeeze(), cmap='Reds', alpha=0.2)
+    # plt.title("iter: %d, loss: %0.2f" % (i, loss.data))
+    # plt.axis("off")
+    # plt.title("Best fit")
+    # plt.show()
+
 
     writer.close()
 

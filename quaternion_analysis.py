@@ -12,7 +12,7 @@ def plot_losses(losses):
     plt.show()
 
 def plot_translations(T_original, parameter_updates):
-    T = np.array([p['T'] for p in parameter_updates])
+    T = np.stack([p['T'] for p in parameter_updates])
     T_x = T[:, :, 0].flatten()
     T_y = T[:, :, 1].flatten()
     T_z = T[:, :, 2].flatten()
